@@ -284,6 +284,34 @@ section.card{border:1px solid var(--line-strong);border-radius:16px;overflow:hid
 .drawer-title{color:var(--ink);font-weight:800}
 .gpill{border:1px solid var(--line-strong);font-weight:700;color:var(--ink-soft)}
 .gpill.on{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+</style><style>
+/* ============ Une couleur par section + événements colorés (calendrier) ============ */
+/* bandeaux de titre par onglet */
+#view-accueil .card-head{background:#242030}
+#view-objectifs .card-head{background:#2563eb}
+#view-taches .card-head{background:var(--soon)}
+#view-agenda .card-head{background:var(--accent)}
+/* Agenda : orange plein seulement sur le Calendrier ; les 2 cartes utilitaires en clair */
+#view-agenda section.card:nth-of-type(1) .card-head,
+#view-agenda section.card:nth-of-type(2) .card-head{background:var(--accent-soft)}
+#view-agenda section.card:nth-of-type(1) .card-head h2,
+#view-agenda section.card:nth-of-type(2) .card-head h2,
+#view-agenda section.card:nth-of-type(1) .card-head .count,
+#view-agenda section.card:nth-of-type(2) .card-head .count{color:#b7430a}
+/* onglet actif = couleur de sa section */
+.tab[data-view="accueil"].active{background:#242030}
+.tab[data-view="objectifs"].active{background:#2563eb}
+.tab[data-view="taches"].active{background:var(--soon)}
+.tab[data-view="agenda"].active{background:var(--accent)}
+/* événements colorés dans le calendrier (vue mois) */
+.cal .ev{border-left:3px solid currentColor;font-weight:750}
+.cal .ev.event,.cal .ev.obj{background:#ffe4d3;color:#c2410c}
+.cal .ev.gevent{background:#e4ecff;color:#2563eb}
+.cal .ev.task{background:#ffe1f1;color:#c81e73}
+.cal .ev.tdeadline{background:#ffe0e7;color:#e11d48}
+/* vue semaine + légende : Google en bleu */
+.chip.gcal{background:#e4ecff;color:#2563eb}
+.calleg span:last-child i{background:#2563eb !important}
 </style></head>
 <body>
 <div class="wrap">
