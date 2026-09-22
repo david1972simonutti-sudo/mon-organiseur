@@ -135,8 +135,8 @@ textarea.inp{resize:vertical;min-height:70px}
 .calnav button{border:none;border-radius:12px;width:44px;height:44px;font-size:24px;font-weight:800;background:var(--brand-soft);color:var(--brand-ink)}
 .dow{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
 .dow span{text-align:center;font-size:13px;font-weight:800;color:var(--muted);padding:4px 0}
-.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.day{min-height:78px;border-radius:13px;padding:6px 6px 5px;background:#fafaff;border:1px solid #f0f0f8;overflow:hidden}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;grid-auto-rows:64px}
+.day{min-height:0;border-radius:13px;padding:6px 6px 5px;background:#fafaff;border:1px solid #f0f0f8;overflow:hidden}
 .day.out{opacity:.4}
 .day .n{font-size:15px;font-weight:800;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:8px}
 .day.today .n{background:var(--brand);color:#fff}
@@ -147,10 +147,22 @@ textarea.inp{resize:vertical;min-height:70px}
 .ev.objectif{background:var(--cta);color:#fff}
 .ev.gevent{background:var(--goog-soft);color:var(--goog-ink)}
 .ev.more{background:none;color:var(--muted);font-weight:800;padding-left:2px}
-@media(min-width:620px){.day{min-height:96px}}
+@media(min-width:900px){.days{grid-auto-rows:88px}}
 .legend{display:flex;flex-wrap:wrap;gap:13px;margin-top:14px;font-size:13.5px;font-weight:800}
 .legend span{display:inline-flex;align-items:center;gap:7px;color:var(--muted)}
 .legend .dot{width:12px;height:12px;border-radius:4px}
+.agwrap{display:block}
+.agside{margin-top:16px}
+@media(min-width:900px){.agwrap{display:grid;grid-template-columns:1.7fr 1fr;gap:18px;align-items:start}.agside{margin-top:0}}
+.upcoming{background:var(--surface);border-radius:20px;padding:16px 16px 6px;box-shadow:0 8px 22px rgba(28,32,54,.08)}
+.upcoming h3{font-size:18px;margin-bottom:10px;letter-spacing:-.3px}
+.up-empty{font-size:14px;color:var(--muted);padding:6px 2px 16px;line-height:1.55}
+.up-item{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.up-item:last-child{border-bottom:none}
+.up-bar{width:5px;align-self:stretch;min-height:30px;border-radius:5px;flex:0 0 auto}
+.up-tt{min-width:0;flex:1}
+.up-n{font-size:15.5px;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up-w{font-size:13px;font-weight:700;color:var(--muted)}
 
 /* week list */
 .wkday{margin-bottom:14px}
@@ -212,7 +224,7 @@ textarea.inp{resize:vertical;min-height:70px}
 
 <nav class="tabs" id="tabs">
   <button data-v="agenda"><span class="ic">🗓️</span>Agenda</button>
-  <button data-v="taches"><span class="ic">✅</span>Tâches</button>
+  <button data-v="taches"><span class="ic">📋</span>Tâches</button>
   <button data-v="objectifs"><span class="ic">🎯</span>Objectifs</button>
   <button data-v="reglages"><span class="ic">⚙️</span>Réglages</button>
 </nav>
@@ -388,9 +400,25 @@ function viewAgenda(){
     +'<button data-mode="semaine" class="'+(state.agendaMode==="semaine"?"on":"")+'">Semaine</button></div>';
   h+='<button class="btn cta block" id="addEvBtn" style="margin-bottom:16px">＋ Ajouter un événement</button>';
   h+='<div id="evFormSlot"></div>';
-  h+=(state.agendaMode==="mois")?renderMonth():renderWeek();
+  h+='<div class="agwrap"><div class="agmain">'+((state.agendaMode==="mois")?renderMonth():renderWeek())+'</div><div class="agside">'+agendaUpcoming()+'</div></div>';
   h+='</section>';
   return h;
+}
+function agendaUpcoming(){
+  var today=todayISO();
+  var items=agendaItems().filter(function(i){return i.date>=today;}).sort(function(a,b){
+    if(a.date!==b.date)return a.date<b.date?-1:1;var ha=a.heure||"99:99",hb=b.heure||"99:99";return ha<hb?-1:ha>hb?1:0;
+  }).slice(0,12);
+  var h='<div class="upcoming"><h3>\u00c0 venir</h3>';
+  if(!items.length){h+='<div class="up-empty">Rien de pr\u00e9vu pour l\'instant.<br>Importe ta sauvegarde (R\u00e9glages) ou ajoute un \u00e9v\u00e9nement.</div></div>';return h;}
+  items.forEach(function(it){
+    var color=it.cat==="evenement"?"var(--event)":it.cat==="task"?"var(--task)":it.cat==="tdeadline"?"var(--dead)":it.cat==="objectif"?"var(--cta)":"var(--goog)";
+    var pre=it.cat==="tdeadline"?"\u23f0 ":it.cat==="objectif"?"\ud83c\udfaf ":"";
+    var when=fmtDate(it.date)+(it.heure?" \u00b7 "+it.heure:"");
+    h+='<div class="up-item" data-open="'+it.cat+'" data-id="'+it.id+'"><span class="up-bar" style="background:'+color+'"></span>'
+      +'<div class="up-tt"><div class="up-n"'+(it.done?' style="text-decoration:line-through;color:#9aa0bb"':"")+'>'+pre+esc(it.titre)+'</div><div class="up-w">'+when+'</div></div></div>';
+  });
+  h+='</div>';return h;
 }
 function renderMonth(){
   var base=new Date();base.setDate(1);base.setMonth(base.getMonth()+state.monthOffset);
