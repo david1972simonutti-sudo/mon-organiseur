@@ -312,6 +312,23 @@ section.card{border:1px solid var(--line-strong);border-radius:16px;overflow:hid
 /* vue semaine + légende : Google en bleu */
 .chip.gcal{background:#e4ecff;color:#2563eb}
 .calleg span:last-child i{background:#2563eb !important}
+</style><style>
+/* ============ Agenda = ROSE (toute la page) ; Taches = ORANGE ============ */
+#view-agenda .card-head,
+#view-agenda section.card:nth-of-type(1) .card-head,
+#view-agenda section.card:nth-of-type(2) .card-head{background:var(--soon)}
+#view-agenda section.card:nth-of-type(1) .card-head h2,
+#view-agenda section.card:nth-of-type(2) .card-head h2,
+#view-agenda section.card:nth-of-type(1) .card-head .count,
+#view-agenda section.card:nth-of-type(2) .card-head .count{color:#fff}
+.tab[data-view="agenda"].active{background:var(--soon)}
+#view-agenda .btn-primary{background:var(--soon)}
+#view-agenda .seg button.active,#view-agenda .filter-chip.active{background:var(--soon);border-color:var(--soon)}
+#view-agenda .cal .today,#view-agenda .agenda-day.today{background:var(--soon-soft)}
+#view-agenda .cal .today .dnum,#view-agenda .agenda-day.today .d-label .dow{color:#c81e73}
+/* Taches en orange pour rester distinct */
+#view-taches .card-head{background:var(--accent)}
+.tab[data-view="taches"].active{background:var(--accent)}
 </style></head>
 <body>
 <div class="wrap">
