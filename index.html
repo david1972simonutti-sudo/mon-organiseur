@@ -300,7 +300,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
 .ai-ops .btns{display:flex;gap:8px}
 .ai-input{display:flex;gap:8px;padding:10px 20px 6px;align-items:flex-end}
 .ai-input textarea{flex:1;border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px;background:var(--panel-2);color:var(--ink);resize:vertical;font-family:inherit;font-size:14.5px}
-</style></head>
+.ai-sys{padding:0 20px 8px}.ai-sys summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:700}.ai-sys pre{white-space:pre-wrap;word-break:break-word;font-size:12px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;max-height:300px;overflow:auto;color:var(--ink-soft)}</style></head>
 <body>
 <div class="wrap">
   <div class="hero"><div class="hero-tag">MON ORGANISEUR</div><div class="hero-title">Garde le cap, tiens tes deadlines.</div></div>
@@ -436,14 +436,12 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     <section class="card">
       <div class="card-head"><h2>Assistant</h2><span class="count" id="ai-cost"></span></div>
       <div class="ai-setup">
-        <input type="password" id="ai-key" placeholder="Clé API Anthropic (sk-ant-…)" autocomplete="off" />
-        <select id="ai-model">
-          <option value="claude-opus-5">Claude Opus 5 — top qualité</option>
-          <option value="claude-sonnet-5">Claude Sonnet 5 — équilibré</option>
-          <option value="claude-haiku-4-5">Claude Haiku 4.5 — le moins cher</option>
-        </select>
+        <select id="ai-provider"><option value="anthropic">Claude (Anthropic)</option><option value="gemini">Gemini (Google)</option></select>
+        <select id="ai-model"></select>
+        <input type="password" id="ai-key" placeholder="Clé API…" autocomplete="off" />
         <button class="btn-ghost" id="ai-savekey">Enregistrer</button>
       </div>
+      <details class="ai-sys"><summary>Voir le prompt système envoyé au modèle</summary><pre id="ai-sysview"></pre></details>
       <div class="hint">Ta clé reste sur cet appareil (envoyée uniquement à Anthropic, jamais dans le code ni sur GitHub). L'assistant voit tes objectifs, tâches et événements, propose un plan, et sur <strong>Valider</strong> il écrit directement dans ton organiseur.</div>
       <div class="ai-log" id="ai-log"></div>
       <div class="ai-input">
@@ -1067,8 +1065,12 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
   render();
 
   // ================= ASSISTANT IA (Claude) =================
-  var AIKEY="organiseur.aikey",AIMODEL="organiseur.aimodel",aiMsgs=[],aiBusy=false;
-  function aiGetKey(){try{return localStorage.getItem(AIKEY)||"";}catch(e){return"";}}
+  var aiMsgs=[],aiBusy=false;
+  var AI_MODELS={anthropic:[["claude-opus-5","Claude Opus 5 — top"],["claude-sonnet-5","Claude Sonnet 5 — équilibré"],["claude-haiku-4-5","Claude Haiku 4.5 — le moins cher"]],gemini:[["gemini-2.5-pro","Gemini 2.5 Pro — top"],["gemini-2.5-flash","Gemini 2.5 Flash — rapide"],["gemini-2.5-flash-lite","Gemini 2.5 Flash-Lite — le moins cher"]]};
+  function aiProvider(){return (document.getElementById("ai-provider")||{}).value||"anthropic";}
+  function aiKeyName(p){return "organiseur.aikey."+p;}
+  function aiGetKey(p){try{return localStorage.getItem(aiKeyName(p||aiProvider()))||"";}catch(e){return"";}}
+  function aiFillModels(p){var mm=document.getElementById("ai-model");if(!mm)return;var cur="";try{cur=localStorage.getItem("organiseur.aimodel."+p)||"";}catch(e){}mm.innerHTML="";AI_MODELS[p].forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];if(o[0]===cur)op.selected=true;mm.appendChild(op);});}
   function aiAppend(role,txt){var log=document.getElementById("ai-log");if(!log)return null;var d=document.createElement("div");d.className="ai-msg "+role;d.textContent=txt;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
   function aiSystem(){
     var data={objectifs:state.objectifs,taches:state.taches,evenements:state.evenements,northstar:state.northstar};
@@ -1117,25 +1119,37 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     else if(op.op==="delete_event"){var ed=state.evenements.find(function(x){return x.id===op.id;});if(ed&&ed.googleId)delGevent(ed.googleId);state.evenements=state.evenements.filter(function(x){return x.id!==op.id;});}
   }catch(err){}});save();render();aiAppend("bot","C'est fait, j'ai mis à jour ton organiseur.");}
   function aiSend(){
-    if(aiBusy)return;var key=aiGetKey();if(!key){alert("Ajoute d'abord ta clé API Anthropic (bouton Enregistrer).");return;}
+    if(aiBusy)return;var p=aiProvider();var key=aiGetKey(p);if(!key){alert("Ajoute d'abord ta clé API ("+(p==="gemini"?"Google":"Anthropic")+") puis Enregistrer.");return;}
     var ta=document.getElementById("ai-text");var txt=ta.value.trim();if(!txt)return;
     ta.value="";aiAppend("user",txt);aiMsgs.push({role:"user",content:txt});
     aiBusy=true;var pend=aiAppend("bot","…");
-    var model=(document.getElementById("ai-model")||{}).value||"claude-opus-5";
-    fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:model,max_tokens:2048,output_config:{effort:"low"},system:aiSystem(),messages:aiMsgs})})
-    .then(function(r){return r.json();})
-    .then(function(d){if(pend)pend.remove();
-      if(d.error){aiAppend("bot","Erreur API : "+(d.error.message||"inconnue"));aiBusy=false;return;}
-      var out="";(d.content||[]).forEach(function(b){if(b.type==="text")out+=b.text;});
-      if(!out){aiAppend("bot","(réponse vide)");aiBusy=false;return;}
-      aiMsgs.push({role:"assistant",content:out});aiRender(out);aiBusy=false;})
-    .catch(function(e){if(pend)pend.remove();aiAppend("bot","Erreur réseau : "+String(e));aiBusy=false;});
+    var model=(document.getElementById("ai-model")||{}).value||AI_MODELS[p][0][0];
+    var done=function(out){if(pend)pend.remove();if(!out){aiAppend("bot","(réponse vide)");aiBusy=false;return;}aiMsgs.push({role:"assistant",content:out});aiRender(out);aiBusy=false;};
+    var fail=function(m){if(pend)pend.remove();aiAppend("bot",m);aiBusy=false;};
+    if(p==="gemini"){
+      var url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent?key="+encodeURIComponent(key);
+      var body={system_instruction:{parts:[{text:aiSystem()}]},contents:aiMsgs.map(function(m){return{role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]};}),generationConfig:{maxOutputTokens:2048,temperature:0.6}};
+      fetch(url,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}).then(function(r){return r.json();}).then(function(d){
+        if(d.error){fail("Erreur API Gemini : "+(d.error.message||"inconnue"));return;}
+        var out="";var c=d.candidates&&d.candidates[0];if(c&&c.content&&c.content.parts)c.content.parts.forEach(function(x){if(x.text)out+=x.text;});done(out);
+      }).catch(function(e){fail("Erreur réseau : "+String(e));});
+    }else{
+      fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:model,max_tokens:2048,output_config:{effort:"low"},system:[{type:"text",text:aiSystem(),cache_control:{type:"ephemeral"}}],messages:aiMsgs})}).then(function(r){return r.json();}).then(function(d){
+        if(d.error){fail("Erreur API Claude : "+(d.error.message||"inconnue"));return;}
+        var out="";(d.content||[]).forEach(function(b){if(b.type==="text")out+=b.text;});done(out);
+      }).catch(function(e){fail("Erreur réseau : "+String(e));});
+    }
   }
-  (function initAI(){var kf=document.getElementById("ai-key");if(kf)kf.value=aiGetKey();
-    var mm=document.getElementById("ai-model");try{var m=localStorage.getItem(AIMODEL);if(m&&mm)mm.value=m;}catch(e){}
-    var sk=document.getElementById("ai-savekey");if(sk)sk.onclick=function(){try{localStorage.setItem(AIKEY,(kf.value||"").trim());if(mm)localStorage.setItem(AIMODEL,mm.value);}catch(e){}alert("Clé enregistrée sur cet appareil.");};
+  (function initAI(){
+    var pv=document.getElementById("ai-provider"),mm=document.getElementById("ai-model"),kf=document.getElementById("ai-key");
+    try{var sp=localStorage.getItem("organiseur.aiprovider");if(sp&&pv)pv.value=sp;}catch(e){}
+    function refresh(){var p=aiProvider();aiFillModels(p);if(kf){kf.value=aiGetKey(p);kf.placeholder=(p==="gemini"?"Clé API Google (AIza…)":"Clé API Anthropic (sk-ant-…)");}}
+    refresh();
+    if(pv)pv.onchange=function(){try{localStorage.setItem("organiseur.aiprovider",pv.value);}catch(e){}refresh();};
+    var sk=document.getElementById("ai-savekey");if(sk)sk.onclick=function(){var p=aiProvider();try{localStorage.setItem(aiKeyName(p),(kf.value||"").trim());if(mm)localStorage.setItem("organiseur.aimodel."+p,mm.value);localStorage.setItem("organiseur.aiprovider",p);}catch(e){}alert("Clé enregistrée sur cet appareil.");};
     var sb=document.getElementById("ai-send");if(sb)sb.onclick=aiSend;
     var ta=document.getElementById("ai-text");if(ta)ta.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))aiSend();});
+    var sv=document.querySelector(".ai-sys");if(sv)sv.addEventListener("toggle",function(){var pre=document.getElementById("ai-sysview");if(pre&&sv.open)pre.textContent=aiSystem();});
   })();
 
 })();
