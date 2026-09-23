@@ -286,6 +286,20 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
 .seg button.active,.filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .tl-title,.a-item .a-title{color:#0e0b12;font-weight:700}.tl-date{color:#000;font-weight:730}
 .drawer-head{background:var(--panel);border-bottom:1px solid var(--line)}.drawer-type{color:var(--accent);font-weight:820}.drawer-title{color:var(--ink);font-weight:800}
+</style><style>
+.ai-setup{display:flex;gap:8px;flex-wrap:wrap;padding:2px 20px 10px}
+.ai-setup input,.ai-setup select{border:1px solid var(--line-strong);border-radius:10px;padding:9px 12px;background:var(--panel-2);color:var(--ink);font-weight:560}
+.ai-setup #ai-key{flex:1 1 260px}
+.ai-log{padding:8px 20px;display:flex;flex-direction:column;gap:10px}
+.ai-msg{padding:11px 14px;border-radius:14px;font-size:14.5px;line-height:1.5;max-width:88%;white-space:pre-wrap;word-break:break-word}
+.ai-msg.user{align-self:flex-end;background:var(--accent);color:#fff;font-weight:600}
+.ai-msg.bot{align-self:flex-start;background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+.ai-ops{align-self:stretch;background:#fff;border:1px solid var(--line-strong);border-radius:14px;padding:12px 15px;box-shadow:var(--shadow)}
+.ai-ops h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent)}
+.ai-ops ul{margin:0 0 10px;padding-left:18px}.ai-ops li{font-size:14px;margin:4px 0;color:var(--ink);font-weight:560}
+.ai-ops .btns{display:flex;gap:8px}
+.ai-input{display:flex;gap:8px;padding:10px 20px 6px;align-items:flex-end}
+.ai-input textarea{flex:1;border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px;background:var(--panel-2);color:var(--ink);resize:vertical;font-family:inherit;font-size:14.5px}
 </style></head>
 <body>
 <div class="wrap">
@@ -307,6 +321,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     <button class="tab" data-view="objectifs">Objectifs</button>
     <button class="tab" data-view="taches">Tâches</button>
     <button class="tab" data-view="agenda">Agenda</button>
+    <button class="tab" data-view="assistant">Assistant</button>
   </nav>
 
   <div class="view" id="view-accueil">
@@ -417,6 +432,26 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     </section>
   </div>
 
+  <div class="view" id="view-assistant">
+    <section class="card">
+      <div class="card-head"><h2>Assistant</h2><span class="count" id="ai-cost"></span></div>
+      <div class="ai-setup">
+        <input type="password" id="ai-key" placeholder="Clé API Anthropic (sk-ant-…)" autocomplete="off" />
+        <select id="ai-model">
+          <option value="claude-opus-5">Claude Opus 5 — top qualité</option>
+          <option value="claude-sonnet-5">Claude Sonnet 5 — équilibré</option>
+          <option value="claude-haiku-4-5">Claude Haiku 4.5 — le moins cher</option>
+        </select>
+        <button class="btn-ghost" id="ai-savekey">Enregistrer</button>
+      </div>
+      <div class="hint">Ta clé reste sur cet appareil (envoyée uniquement à Anthropic, jamais dans le code ni sur GitHub). L'assistant voit tes objectifs, tâches et événements, propose un plan, et sur <strong>Valider</strong> il écrit directement dans ton organiseur.</div>
+      <div class="ai-log" id="ai-log"></div>
+      <div class="ai-input">
+        <textarea id="ai-text" rows="2" placeholder="Ex : répartis mes tâches d'ici la rentrée en tenant les deadlines · ajoute un cours particulier vendredi 17h · qu'est-ce qui est en retard ?"></textarea>
+        <button class="btn-primary" id="ai-send">Envoyer</button>
+      </div>
+    </section>
+  </div>
   <div class="foot">
     Tes données restent <strong>dans ton navigateur</strong> ; tes événements sont aussi écrits dans <strong>ton Google Agenda</strong> quand tu es connecté.<br />
     <em>Sauvegarder</em> télécharge une copie de secours · <em>Exporter .ics</em> crée un fichier calendrier.
@@ -1030,6 +1065,78 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
 
   gStatus();
   render();
+
+  // ================= ASSISTANT IA (Claude) =================
+  var AIKEY="organiseur.aikey",AIMODEL="organiseur.aimodel",aiMsgs=[],aiBusy=false;
+  function aiGetKey(){try{return localStorage.getItem(AIKEY)||"";}catch(e){return"";}}
+  function aiAppend(role,txt){var log=document.getElementById("ai-log");if(!log)return null;var d=document.createElement("div");d.className="ai-msg "+role;d.textContent=txt;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
+  function aiSystem(){
+    var data={objectifs:state.objectifs,taches:state.taches,evenements:state.evenements,northstar:state.northstar};
+    return "Tu es l'assistant d'organisation personnel de Raphael, integre dans son organiseur (objectifs, taches, evenements). Date du jour: "+todayISO()+".\n"+
+    "Donnees actuelles (JSON):\n"+JSON.stringify(data)+"\n\n"+
+    "Regles: priorites = haute|moyenne|basse ; dates AAAA-MM-JJ ; heures HH:MM ; types d'evenement = cours|rdv|siimply|perso|autre. Une tache a un 'echeance' (jour prevu, apparait dans l'agenda) et/ou une 'deadline' (a faire avant). Reponds en francais, concret et concis.\n"+
+    "Tu DOIS repondre UNIQUEMENT par un objet JSON valide, sans texte autour, de la forme:\n"+
+    '{"reply":"ton message court","operations":[...]}\n'+
+    "operations peut etre vide ([]). Types d'operation:\n"+
+    '{"op":"add_task","titre":"","description":"","priorite":"moyenne","echeance":null,"heure":null,"dureeMin":null,"deadline":null,"objectifId":null}\n'+
+    '{"op":"update_task","id":"<id>", ...champs a modifier}\n'+
+    '{"op":"add_objectif","titre":"","description":"","echeance":null}\n'+
+    '{"op":"update_objectif","id":"<id>", ...}\n'+
+    '{"op":"add_event","titre":"","description":"","date":"AAAA-MM-JJ","heure":null,"dureeMin":null,"type":null}\n'+
+    '{"op":"update_event","id":"<id>", ...}\n'+
+    '{"op":"delete_task","id":"<id>"} (ou delete_objectif / delete_event)\n'+
+    "Ne propose des operations que si c'est utile ; sinon operations vide et conseille dans reply. Utilise les id existants pour modifier/supprimer.";
+  }
+  function aiParse(t){try{return JSON.parse(t);}catch(e){}var i=t.indexOf("{"),j=t.lastIndexOf("}");if(i>=0&&j>i){try{return JSON.parse(t.slice(i,j+1));}catch(e){}}return null;}
+  function opLabel(op){var n=op.op;
+    if(n==="add_task")return "Nouvelle tache : "+(op.titre||"")+(op.deadline?" — deadline "+op.deadline:op.echeance?" — "+op.echeance:"")+(op.priorite?" ["+op.priorite+"]":"");
+    if(n==="update_task")return "Modifier une tache";
+    if(n==="add_objectif")return "Nouvel objectif : "+(op.titre||"")+(op.echeance?" — "+op.echeance:"");
+    if(n==="update_objectif")return "Modifier un objectif";
+    if(n==="add_event")return "Nouvel evenement : "+(op.titre||"")+" — "+(op.date||"")+(op.heure?" "+op.heure:"")+(op.type?" ["+op.type+"]":"");
+    if(n==="update_event")return "Modifier un evenement";
+    if(n&&n.indexOf("delete")===0)return "Supprimer un element";
+    return n||"?";}
+  function aiShowOps(ops){var log=document.getElementById("ai-log");var d=document.createElement("div");d.className="ai-ops";
+    var h="<h4>Proposition ("+ops.length+")</h4><ul>";ops.forEach(function(op){h+="<li>"+esc(opLabel(op))+"</li>";});
+    h+="</ul><div class='btns'><button class='btn-primary' data-aiok='1'>Valider</button><button class='btn-ghost' data-aino='1'>Ignorer</button></div>";
+    d.innerHTML=h;log.appendChild(d);log.scrollTop=log.scrollHeight;
+    d.querySelector("[data-aiok]").onclick=function(){aiApply(ops);d.querySelector(".btns").innerHTML="<span class='chip ok'>Appliqué</span>";};
+    d.querySelector("[data-aino]").onclick=function(){d.remove();};}
+  function aiRender(t){var o=aiParse(t);if(!o){aiAppend("bot",t);return;}if(o.reply)aiAppend("bot",o.reply);if(o.operations&&o.operations.length)aiShowOps(o.operations);}
+  function aiApply(ops){ops.forEach(function(op){try{
+    if(op.op==="add_task")state.taches.push({id:uid(),titre:op.titre||"(sans titre)",description:op.description||"",objectifId:op.objectifId||null,echeance:op.echeance||null,heure:op.heure||null,dureeMin:op.dureeMin||null,deadline:op.deadline||null,priorite:op.priorite||"moyenne",done:false,createdAt:Date.now()});
+    else if(op.op==="update_task"){var t=state.taches.find(function(x){return x.id===op.id;});if(t)["titre","description","objectifId","echeance","heure","dureeMin","deadline","priorite","done"].forEach(function(k){if(op[k]!==undefined)t[k]=op[k];});}
+    else if(op.op==="add_objectif")state.objectifs.push({id:uid(),titre:op.titre||"(sans titre)",description:op.description||"",echeance:op.echeance||null,createdAt:Date.now()});
+    else if(op.op==="update_objectif"){var o2=state.objectifs.find(function(x){return x.id===op.id;});if(o2)["titre","description","echeance"].forEach(function(k){if(op[k]!==undefined)o2[k]=op[k];});}
+    else if(op.op==="add_event"){var ev={id:uid(),titre:op.titre||"(sans titre)",description:op.description||"",date:op.date||todayISO(),heure:op.heure||null,dureeMin:op.dureeMin||null,type:op.type||null,createdAt:Date.now()};state.evenements.push(ev);if(connected)pushEvent(ev).catch(function(){});}
+    else if(op.op==="update_event"){var e=state.evenements.find(function(x){return x.id===op.id;});if(e){["titre","description","date","heure","dureeMin","type"].forEach(function(k){if(op[k]!==undefined)e[k]=op[k];});if(connected)pushEvent(e).catch(function(){});}}
+    else if(op.op==="delete_task")state.taches=state.taches.filter(function(x){return x.id!==op.id;});
+    else if(op.op==="delete_objectif"){state.objectifs=state.objectifs.filter(function(x){return x.id!==op.id;});state.taches.forEach(function(x){if(x.objectifId===op.id)x.objectifId=null;});}
+    else if(op.op==="delete_event"){var ed=state.evenements.find(function(x){return x.id===op.id;});if(ed&&ed.googleId)delGevent(ed.googleId);state.evenements=state.evenements.filter(function(x){return x.id!==op.id;});}
+  }catch(err){}});save();render();aiAppend("bot","C'est fait, j'ai mis à jour ton organiseur.");}
+  function aiSend(){
+    if(aiBusy)return;var key=aiGetKey();if(!key){alert("Ajoute d'abord ta clé API Anthropic (bouton Enregistrer).");return;}
+    var ta=document.getElementById("ai-text");var txt=ta.value.trim();if(!txt)return;
+    ta.value="";aiAppend("user",txt);aiMsgs.push({role:"user",content:txt});
+    aiBusy=true;var pend=aiAppend("bot","…");
+    var model=(document.getElementById("ai-model")||{}).value||"claude-opus-5";
+    fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:model,max_tokens:2048,output_config:{effort:"low"},system:aiSystem(),messages:aiMsgs})})
+    .then(function(r){return r.json();})
+    .then(function(d){if(pend)pend.remove();
+      if(d.error){aiAppend("bot","Erreur API : "+(d.error.message||"inconnue"));aiBusy=false;return;}
+      var out="";(d.content||[]).forEach(function(b){if(b.type==="text")out+=b.text;});
+      if(!out){aiAppend("bot","(réponse vide)");aiBusy=false;return;}
+      aiMsgs.push({role:"assistant",content:out});aiRender(out);aiBusy=false;})
+    .catch(function(e){if(pend)pend.remove();aiAppend("bot","Erreur réseau : "+String(e));aiBusy=false;});
+  }
+  (function initAI(){var kf=document.getElementById("ai-key");if(kf)kf.value=aiGetKey();
+    var mm=document.getElementById("ai-model");try{var m=localStorage.getItem(AIMODEL);if(m&&mm)mm.value=m;}catch(e){}
+    var sk=document.getElementById("ai-savekey");if(sk)sk.onclick=function(){try{localStorage.setItem(AIKEY,(kf.value||"").trim());if(mm)localStorage.setItem(AIMODEL,mm.value);}catch(e){}alert("Clé enregistrée sur cet appareil.");};
+    var sb=document.getElementById("ai-send");if(sb)sb.onclick=aiSend;
+    var ta=document.getElementById("ai-text");if(ta)ta.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.metaKey||e.ctrlKey))aiSend();});
+  })();
+
 })();
 </script>
 </body>
