@@ -363,6 +363,10 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
   </div>
 
   <div class="view" id="view-taches">
+    <section class="card" id="card-today">
+      <div class="card-head"><h2>Tâches du jour</h2><span class="count" id="c-today"></span></div>
+      <div class="card-body"><ul class="list" id="list-today"></ul></div>
+    </section>
     <section class="card">
       <div class="card-head"><h2>Tâches à faire</h2><span class="count" id="c-tasks"></span></div>
       <form class="addrow" id="form-task">
@@ -560,7 +564,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     setText("t-obj",state.objectifs.length);
     setText("t-tasks",state.taches.filter(function(t){return!t.done;}).length);
     setText("t-week",week);setText("t-late",late);
-    renderTimeline();renderObj();renderTask();renderAgenda();refreshSelect();
+    renderTimeline();renderObj();renderTask();renderToday();renderAgenda();refreshSelect();
     save();
   }
 
@@ -662,6 +666,17 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     return m;
   }
 
+  function renderToday(){
+    var ul=document.getElementById("list-today");if(!ul)return;ul.innerHTML="";
+    var today=todayISO();
+    var list=state.taches.filter(function(t){return !t.done && ((t.echeance&&t.echeance<=today)||(t.deadline&&t.deadline<=today));});
+    setText("c-today",list.length?list.length+" à faire":"");
+    if(!list.length){ul.innerHTML='<li class="empty">Rien d\'impose aujourd\'hui. Choisis ta priorite et avance.</li>';return;}
+    list.sort(function(a,b){var pa=PRANK[a.priorite]!=null?PRANK[a.priorite]:1,pb=PRANK[b.priorite]!=null?PRANK[b.priorite]:1;if(pa!==pb)return pa-pb;var ra=a.deadline||a.echeance,rb=b.deadline||b.echeance;return parseISO(ra)-parseISO(rb);});
+    list.forEach(function(t){var li=document.createElement("li");li.className="item item-task prio-"+t.priorite;
+      li.innerHTML='<button class="check" data-toggle="'+t.id+'" aria-label="Marquer fait"></button><div class="item-main"><div class="item-title" data-open="task:'+t.id+'">'+esc(t.titre)+'</div><div class="item-meta">'+taskChips(t)+'</div></div>';
+      ul.appendChild(li);});
+  }
   function renderTask(){
     var ul=document.getElementById("list-task");ul.innerHTML="";
     var open=state.taches.filter(function(t){return!t.done;}).length;
