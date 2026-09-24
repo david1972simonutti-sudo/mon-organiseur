@@ -307,7 +307,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
 #view-assistant .btn-primary{background:#17141c;color:#fff;border:none}
 #view-assistant .btn-primary:hover{filter:brightness(1.25)}
 #view-assistant .chip.ok{background:#ececec;color:#333}
-</style></head>
+.cal .cell{cursor:pointer}</style></head>
 <body>
 <div class="wrap">
   <div class="hero"><div class="hero-tag">MON ORGANISEUR</div><div class="hero-title">Garde le cap, tiens tes deadlines.</div></div>
@@ -726,7 +726,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     for(var i=0;i<weeks*7;i++){
       var day=new Date(start);day.setDate(start.getDate()+i);var iso=isoOf(day);
       var cell=document.createElement("div");
-      cell.className="cell"+(day.getMonth()!==mo?" out":"")+(iso===todayISO()?" today":"");
+      cell.className="cell"+(day.getMonth()!==mo?" out":"")+(iso===todayISO()?" today":"");cell.setAttribute("data-dayopen",iso);
       var items=(byDay[iso]||[]).sort(function(a,b){return(a.heure||"99")<(b.heure||"99")?-1:1;});
       if(day.getMonth()===mo)total+=items.length;
       var evs="";
@@ -794,6 +794,22 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
   // ================= DRAWER =================
   function closeDrawer(){drawerCtx=null;var d=document.getElementById("drawer"),ov=document.getElementById("drawer-overlay");d.classList.remove("show");ov.classList.remove("show");setTimeout(function(){d.hidden=true;ov.hidden=true;},200);}
   function refreshDrawer(){if(drawerCtx)openDrawer(drawerCtx.cat,drawerCtx.id);}
+  function openDay(iso){
+    var items=agendaItems().filter(function(i){return i.date===iso;}).sort(function(a,b){return (a.heure||"99")<(b.heure||"99")?-1:1;});
+    var typeEl=document.getElementById("drawer-type"),body=document.getElementById("drawer-body");
+    var d=parseISO(iso);typeEl.textContent="Journée";
+    var html='<div class="drawer-title">'+cap(JOURS[d.getDay()])+" "+d.getDate()+" "+MOIS_LONG[d.getMonth()]+'</div>';
+    if(!items.length){html+='<div class="hint" style="padding:0">Rien de prévu ce jour.</div>';}
+    else{html+='<ul class="list">';items.forEach(function(it){
+      var openCat=(it.cat==="tdeadline"?"task":it.cat);
+      var when=it.cat==="tdeadline"?"Deadline":(it.heure?it.heure+(it.dureeMin?" ("+fmtDuree(it.dureeMin)+")":""):"Journée");
+      var kind=it.cat==="event"?"Événement":it.cat==="gevent"?"Google":it.cat==="task"?"Tâche":it.cat==="tdeadline"?"Deadline":it.cat==="obj"?"Objectif":"";
+      html+='<li class="item"><div class="item-main"><div class="item-title" data-open="'+openCat+':'+it.id+'">'+esc(it.titre)+'</div><div class="item-meta"><span class="chip neutral">'+when+'</span><span class="chip neutral">'+kind+'</span></div></div></li>';
+    });html+='</ul>';}
+    body.innerHTML=html;drawerCtx=null;
+    var dEl=document.getElementById("drawer"),ov=document.getElementById("drawer-overlay");
+    dEl.hidden=false;ov.hidden=false;requestAnimationFrame(function(){dEl.classList.add("show");ov.classList.add("show");});
+  }
   function openDrawer(cat,id){
     var body=document.getElementById("drawer-body");
     var typeEl=document.getElementById("drawer-type");
@@ -1038,7 +1054,9 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
   document.body.addEventListener("click",function(e){
     if(e.target.closest("button"))return;
     var op=e.target.closest("[data-open]");
-    if(op){var s=op.getAttribute("data-open");var i=s.indexOf(":");openDrawer(s.slice(0,i),s.slice(i+1));}
+    if(op){var s=op.getAttribute("data-open");var i=s.indexOf(":");openDrawer(s.slice(0,i),s.slice(i+1));return;}
+    var dc=e.target.closest("[data-dayopen]");
+    if(dc)openDay(dc.getAttribute("data-dayopen"));
   });
 
   function delGevent(gid){
