@@ -1125,17 +1125,15 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     "Donnees actuelles (JSON):\n"+JSON.stringify(data)+"\n\n"+
     "Regles: priorites = haute|moyenne|basse ; dates AAAA-MM-JJ ; heures HH:MM ; types d'evenement = cours|rdv|siimply|perso|autre. Une tache a un 'echeance' (jour prevu, apparait dans l'agenda) et/ou une 'deadline' (a faire avant). Reponds en francais et garde ce ton de coach intense a CHAQUE message.\n"+
     "ANTI-DOUBLON (STRICT): 'evenements' sont tes evenements locaux, 'evenements_google' ceux DEJA presents dans Google Agenda. Ne recree JAMAIS (add_event) un evenement au meme titre et/ou meme date qu'un existant de ces deux listes. Une chose a faire = add_task, jamais add_event. add_event uniquement pour un vrai NOUVEAU rendez-vous horaire absent des listes. En cas de doute, demande au lieu de creer un doublon.\n"+
-    "Tu DOIS repondre UNIQUEMENT par un objet JSON valide, sans texte autour, de la forme:\n"+
-    '{"reply":"ton message court","operations":[...]}\n'+
-    "operations peut etre vide ([]). Types d'operation:\n"+
-    '{"op":"add_task","titre":"","description":"","priorite":"moyenne","echeance":null,"heure":null,"dureeMin":null,"deadline":null,"objectifId":null}\n'+
-    '{"op":"update_task","id":"<id>", ...champs a modifier}\n'+
-    '{"op":"add_objectif","titre":"","description":"","echeance":null}\n'+
-    '{"op":"update_objectif","id":"<id>", ...}\n'+
-    '{"op":"add_event","titre":"","description":"","date":"AAAA-MM-JJ","heure":null,"dureeMin":null,"type":null}\n'+
-    '{"op":"update_event","id":"<id>", ...}\n'+
-    '{"op":"delete_task","id":"<id>"} (ou delete_objectif / delete_event)\n'+
-    "Ne propose des operations que si c'est utile ; sinon operations vide et conseille dans reply. Utilise les id existants pour modifier/supprimer.";
+    "FORMAT: ecris ton message normalement en Markdown (gras avec **texte**, listes avec des tirets). Si tu proposes des changements a l'organiseur, termine ta reponse par UN SEUL bloc de code ```json contenant UNIQUEMENT un tableau JSON d'operations, puis plus aucun texte apres. Aucune operation => aucun bloc. Chaque element du tableau est un objet parmi:\n"+
+    'add_task {op:"add_task", titre, description, priorite(haute|moyenne|basse), echeance, heure, dureeMin, deadline, objectifId}\n'+
+    'update_task {op:"update_task", id, ...champs a changer}\n'+
+    'add_objectif {op:"add_objectif", titre, description, echeance}\n'+
+    'update_objectif {op:"update_objectif", id, ...}\n'+
+    'add_event {op:"add_event", titre, description, date, heure, dureeMin, type(cours|rdv|siimply|perso|autre)}\n'+
+    'update_event {op:"update_event", id, ...}\n'+
+    'delete_task | delete_objectif | delete_event {op, id}\n'+
+    "Champs non pertinents = null. Dates AAAA-MM-JJ, heures HH:MM. Utilise les id EXISTANTS pour update/delete. Ne propose des operations que si c'est vraiment utile.";
   }
   function aiParse(t){try{return JSON.parse(t);}catch(e){}var i=t.indexOf("{"),j=t.lastIndexOf("}");if(i>=0&&j>i){try{return JSON.parse(t.slice(i,j+1));}catch(e){}}return null;}
   function opLabel(op){var n=op.op;
@@ -1153,7 +1151,15 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     d.innerHTML=h;log.appendChild(d);log.scrollTop=log.scrollHeight;
     d.querySelector("[data-aiok]").onclick=function(){aiApply(ops);d.querySelector(".btns").innerHTML="<span class='chip ok'>Appliqué</span>";};
     d.querySelector("[data-aino]").onclick=function(){d.remove();};}
-  function aiRender(t){var o=aiParse(t);if(!o){aiAppend("bot",t);return;}if(o.reply)aiAppend("bot",o.reply);if(o.operations&&o.operations.length)aiShowOps(o.operations);}
+  function aiParseArr(raw){try{return JSON.parse(raw);}catch(e){}try{return JSON.parse(raw.replace(/\r?\n/g," "));}catch(e){}return null;}
+  function aiSplit(t){
+    var f=t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if(f){return {reply:t.replace(f[0],"").trim(),ops:aiParseArr(f[1])};}
+    var o=aiParse(t);
+    if(o&&(o.reply!==undefined||o.operations!==undefined)){return {reply:o.reply||"",ops:o.operations||null};}
+    return {reply:t,ops:null};
+  }
+  function aiRender(t){var r=aiSplit(t);if(r.reply)aiAppend("bot",r.reply);if(r.ops&&r.ops.length)aiShowOps(r.ops);if(!r.reply&&!(r.ops&&r.ops.length))aiAppend("bot",t);}
   function aiApply(ops){ops.forEach(function(op){try{
     if(op.op==="add_task")state.taches.push({id:uid(),titre:op.titre||"(sans titre)",description:op.description||"",objectifId:op.objectifId||null,echeance:op.echeance||null,heure:op.heure||null,dureeMin:op.dureeMin||null,deadline:op.deadline||null,priorite:op.priorite||"moyenne",done:false,createdAt:Date.now()});
     else if(op.op==="update_task"){var t=state.taches.find(function(x){return x.id===op.id;});if(t)["titre","description","objectifId","echeance","heure","dureeMin","deadline","priorite","done"].forEach(function(k){if(op[k]!==undefined)t[k]=op[k];});}
@@ -1200,7 +1206,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
   function aiCurChat(){return aiChatsLoad().filter(function(c){return c.id===aiCurId;})[0];}
   function aiChatList(){var sel=document.getElementById("ai-chatsel");if(!sel)return;var a=aiChatsLoad().slice().sort(function(x,y){return y.ts-x.ts;});sel.innerHTML="";a.forEach(function(c){var o=document.createElement("option");o.value=c.id;o.textContent=c.title||"Chat";if(c.id===aiCurId)o.selected=true;sel.appendChild(o);});}
   function aiPersist(){var a=aiChatsLoad();var c=a.filter(function(x){return x.id===aiCurId;})[0];if(!c){c={id:aiCurId,title:"Nouveau chat",msgs:[],ts:Date.now()};a.unshift(c);}c.msgs=aiMsgs;c.ts=Date.now();if((!c.title||c.title==="Nouveau chat")&&aiMsgs.length){var ff=(aiMsgs[0].content||"");c.title=ff.slice(0,42)+(ff.length>42?"…":"");}aiChatsSave(a);aiChatList();}
-  function aiRenderLog(){var log=document.getElementById("ai-log");if(!log)return;log.innerHTML="";aiMsgs.forEach(function(m){if(m.role==="user")aiAppend("user",m.content);else{var o=aiParse(m.content);aiAppend("bot",o&&o.reply?o.reply:m.content);}});}
+  function aiRenderLog(){var log=document.getElementById("ai-log");if(!log)return;log.innerHTML="";aiMsgs.forEach(function(m){if(m.role==="user")aiAppend("user",m.content);else{var r=aiSplit(m.content);aiAppend("bot",r.reply||m.content);}});}
   function aiNewChat(){var a=aiChatsLoad();var c={id:uid(),title:"Nouveau chat",msgs:[],ts:Date.now()};a.unshift(c);aiChatsSave(a);aiCurId=c.id;try{localStorage.setItem("organiseur.chatcur",aiCurId);}catch(e){}aiMsgs=[];aiRenderLog();aiChatList();}
   function aiSwitch(id){aiCurId=id;try{localStorage.setItem("organiseur.chatcur",id);}catch(e){}var c=aiCurChat();aiMsgs=(c&&c.msgs)?c.msgs.slice():[];aiRenderLog();aiChatList();}
   (function initAI(){
