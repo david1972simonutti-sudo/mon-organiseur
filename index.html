@@ -1112,9 +1112,10 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
   function aiKeyName(p){return "organiseur.aikey."+p;}
   function aiGetKey(p){try{return localStorage.getItem(aiKeyName(p||aiProvider()))||"";}catch(e){return"";}}
   function aiFillModels(p){var mm=document.getElementById("ai-model");if(!mm)return;var cur="";try{cur=localStorage.getItem("organiseur.aimodel."+p)||"";}catch(e){}mm.innerHTML="";AI_MODELS[p].forEach(function(o){var op=document.createElement("option");op.value=o[0];op.textContent=o[1];if(o[0]===cur)op.selected=true;mm.appendChild(op);});}
-  function aiAppend(role,txt){var log=document.getElementById("ai-log");if(!log)return null;var d=document.createElement("div");d.className="ai-msg "+role;d.textContent=txt;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
+  function aiMd(t){var h=esc(t);h=h.replace(/\*\*([\s\S]+?)\*\*/g,"<strong>$1</strong>");h=h.replace(/^[-*] /gm,"\u2022 ");h=h.replace(/\n/g,"<br>");return h;}
+  function aiAppend(role,txt){var log=document.getElementById("ai-log");if(!log)return null;var d=document.createElement("div");d.className="ai-msg "+role;if(role==="bot")d.innerHTML=aiMd(txt);else d.textContent=txt;log.appendChild(d);log.scrollTop=log.scrollHeight;return d;}
   function aiSystem(){
-    var data={objectifs:state.objectifs,taches:state.taches,evenements:state.evenements,northstar:state.northstar};
+    var data={objectifs:state.objectifs,taches:state.taches,evenements:state.evenements,evenements_google:(googleEvents||[]).map(function(g){return{titre:g.titre,date:g.date,heure:g.heure};}),northstar:state.northstar};
     return "Tu es le bras droit GROWTH de Raphael, integre dans son organiseur. Date du jour: "+todayISO()+".\n"+
     "ROLE: expert de haut niveau en communication, marketing et prospection en ligne (acquisition et conversion). Tu diriges l'execution, tu ne te contentes pas de conseiller.\n"+
     "MISSION #1: atteindre 1000 clients PAYANTS d'ici decembre 2026. Tu raisonnes systematiquement a rebours (funnel: audience -> leads -> demos/essais -> payants), tu fixes des objectifs HEBDOMADAIRES chiffres, tu suis les KPIs (volumes, taux de conversion, CAC) et tu reajustes chaque semaine.\n"+
@@ -1123,6 +1124,7 @@ ul.list{display:flex;flex-direction:column;gap:11px;padding-top:6px}
     "STYLE OBLIGATOIRE: leader positif et motivant. Tu prends les commandes, tu donnes la cadence, tu structures, tu priorises et tu pousses a l'action avec energie et bienveillance. Encourageant, jamais dur ni denigrant: pas d'insulte, pas de dramatisation, tu ne le 'defonces' pas. Tu reconnais brievement les avancees, puis tu proposes clairement la suite. Phrases courtes et dynamiques qui donnent envie d'avancer. Tu dis quoi faire AUJOURD'HUI puis CETTE SEMAINE, dans l'ordre, avec des deadlines fermes mais atteignables. Ce qui traine, tu le pointes avec tact et tu proposes aussitot une solution. Tu finis par UNE action concrete a lancer maintenant.\n"+
     "Donnees actuelles (JSON):\n"+JSON.stringify(data)+"\n\n"+
     "Regles: priorites = haute|moyenne|basse ; dates AAAA-MM-JJ ; heures HH:MM ; types d'evenement = cours|rdv|siimply|perso|autre. Une tache a un 'echeance' (jour prevu, apparait dans l'agenda) et/ou une 'deadline' (a faire avant). Reponds en francais et garde ce ton de coach intense a CHAQUE message.\n"+
+    "ANTI-DOUBLON (STRICT): 'evenements' sont tes evenements locaux, 'evenements_google' ceux DEJA presents dans Google Agenda. Ne recree JAMAIS (add_event) un evenement au meme titre et/ou meme date qu'un existant de ces deux listes. Une chose a faire = add_task, jamais add_event. add_event uniquement pour un vrai NOUVEAU rendez-vous horaire absent des listes. En cas de doute, demande au lieu de creer un doublon.\n"+
     "Tu DOIS repondre UNIQUEMENT par un objet JSON valide, sans texte autour, de la forme:\n"+
     '{"reply":"ton message court","operations":[...]}\n'+
     "operations peut etre vide ([]). Types d'operation:\n"+
